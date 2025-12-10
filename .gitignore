@@ -1,4 +1,5 @@
 ﻿# Archivos de credenciales
+secrets/.ipynb_checkpoints/binance.secrets-checkpoint.json
 secrets/binance.secrets.json
 *.secrets.json
 .env
