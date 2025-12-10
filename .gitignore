@@ -6,6 +6,7 @@ secrets/
 .env
 *.key
 *.pem
+secrets/.ipynb_checkpoints/binance.secrets-checkpoint.json
 
 # ============================================
 # PYTHON
