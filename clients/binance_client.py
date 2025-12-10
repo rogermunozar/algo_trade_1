@@ -35,9 +35,11 @@ def retry_on_error(max_retries=3, delay=1):
     return decorator
 
 
-def load_secrets(filepath="secrets/binance.secrets.json"):
+def load_secrets_from_file(filepath="secrets/binance.secrets.json"):
     """
-    Carga las credenciales de API desde archivo JSON
+    Carga las credenciales de API desde archivo JSON (legacy)
+    
+    DEPRECADO: Usar load_secrets() que lee de variables de entorno
     
     Args:
         filepath: Ruta al archivo de credenciales
@@ -49,6 +51,7 @@ def load_secrets(filepath="secrets/binance.secrets.json"):
         FileNotFoundError: Si el archivo no existe
         KeyError: Si faltan las claves en el JSON
     """
+    logger.warning("load_secrets_from_file está deprecado. Usa load_secrets() con variables de entorno")
     try:
         with open(filepath) as f:
             secrets = json.load(f)
@@ -63,6 +66,61 @@ def load_secrets(filepath="secrets/binance.secrets.json"):
     except json.JSONDecodeError:
         logger.error(f"Error al parsear JSON: {filepath}")
         raise
+
+
+def load_secrets():
+    """
+    Carga las credenciales de API desde variables de entorno
+    
+    Variables requeridas:
+    - BINANCE_API_KEY
+    - BINANCE_API_SECRET
+    
+    Returns:
+        Tuple[str, str]: (api_key, api_secret)
+        
+    Raises:
+        ValueError: Si no se encuentran las variables de entorno
+        
+    Example:
+        # En terminal (Linux/Mac):
+        export BINANCE_API_KEY="tu_key_aqui"
+        export BINANCE_API_SECRET="tu_secret_aqui"
+        
+        # En terminal (Windows CMD):
+        set BINANCE_API_KEY=tu_key_aqui
+        set BINANCE_API_SECRET=tu_secret_aqui
+        
+        # En terminal (Windows PowerShell):
+        $env:BINANCE_API_KEY="tu_key_aqui"
+        $env:BINANCE_API_SECRET="tu_secret_aqui"
+        
+        # En Python:
+        from clients.binance_client import BinanceClient, load_secrets
+        api_key, api_secret = load_secrets()
+        binance = BinanceClient(api_key, api_secret)
+    """
+    import os
+    
+    api_key = os.getenv('BINANCE_API_KEY')
+    api_secret = os.getenv('BINANCE_API_SECRET')
+    
+    if not api_key or not api_secret:
+        raise ValueError(
+            "No se encontraron las credenciales en variables de entorno.\n"
+            "Debes configurar:\n"
+            "  - BINANCE_API_KEY\n"
+            "  - BINANCE_API_SECRET\n\n"
+            "Ejemplo (Linux/Mac):\n"
+            "  export BINANCE_API_KEY='tu_key'\n"
+            "  export BINANCE_API_SECRET='tu_secret'\n\n"
+            "Ejemplo (Windows PowerShell):\n"
+            "  $env:BINANCE_API_KEY='tu_key'\n"
+            "  $env:BINANCE_API_SECRET='tu_secret'"
+        )
+    
+    logger.info("Credenciales cargadas desde variables de entorno")
+    return api_key, api_secret
 
 
 class BinanceClient:
