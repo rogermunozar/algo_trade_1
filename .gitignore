@@ -1,21 +1,152 @@
-﻿# Archivos de credenciales
-secrets/.ipynb_checkpoints/binance.secrets-checkpoint.json
-secrets/binance.secrets.json
+﻿# ============================================
+# ARCHIVOS DE CREDENCIALES (MUY IMPORTANTE)
+# ============================================
+secrets/
 *.secrets.json
 .env
+*.key
+*.pem
 
-# Python
+# ============================================
+# PYTHON
+# ============================================
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
-*.class
+*$py.class
 *.so
+
+# Distribution / packaging
 .Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
-# Datos
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv
+
+# ============================================
+# DATOS Y ARCHIVOS GENERADOS
+# ============================================
+# CSVs de datos históricos
+DATA_*.csv
 *.csv
-*.log
 
-# IDE
+# Gráficos generados
+chart_*.png
+*.png
+*.jpg
+*.jpeg
+
+# Logs
+*.log
+logs/
+
+# ============================================
+# IDEs Y EDITORES
+# ============================================
+# VSCode
 .vscode/
+*.code-workspace
+
+# PyCharm
 .idea/
+*.iml
+*.iws
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
 *.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+
+# ============================================
+# SISTEMA OPERATIVO
+# ============================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+.directory
+.Trash-*
+
+# ============================================
+# OTROS
+# ============================================
+# Backups
+*.bak
+*.backup
+*.old
+*.orig
+
+# Temporales
+*.tmp
+*.temp
+temp/
+tmp/
+
+# Bases de datos locales
+*.db
+*.sqlite
+*.sqlite3
