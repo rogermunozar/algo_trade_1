@@ -85,7 +85,11 @@ class BinanceClient:
             api_secret: API secret (opcional para datos públicos)
             testnet: Si True, usa testnet en lugar de producción
         """
-        base_url = "https://testnet.binance.vision" if testnet else None
+        # Definir base_url correctamente
+        if testnet:
+            base_url = "https://testnet.binance.vision"
+        else:
+            base_url = "https://api.binance.com"  # URL de producción
         
         if api_key and api_secret:
             self.client = Spot(api_key=api_key, api_secret=api_secret, base_url=base_url)
