@@ -1,0 +1,20 @@
+﻿# Archivos de credenciales
+secrets/binance.secrets.json
+*.secrets.json
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.class
+*.so
+.Python
+
+# Datos
+*.csv
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
