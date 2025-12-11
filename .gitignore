@@ -7,7 +7,7 @@ secrets/
 *.key
 *.pem
 secrets/.ipynb_checkpoints/binance.secrets-checkpoint.json
-
+.ipynb_checkpoints
 # ============================================
 # PYTHON
 # ============================================
