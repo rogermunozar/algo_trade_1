@@ -13,6 +13,22 @@ fecha = df.index[-1].strftime('%Y-%m-%d')
 comision = binance.calcular_comision(symbol)
 datos = calcular_indicadores(symbol, fecha, '1m', df, comision)
 
+dfX = datos['dfX']  # DataFrame con indicadores
+dfX['senal'] = datos['dfX']['senal']  # o como tu lo uses
+
+# aplicar smart exit
+from analysis.risk_management import apply_smart_exit
+df_with_exit = apply_smart_exit(dfX,
+                                entry_col='senal',
+                                price_col='close',
+                                atr_col='ATR',
+                                ema_short_col='EMA_12',
+                                ema_long_col='EMA_26',
+                                atr_mult=1.5,
+                                min_move_to_update=0.5,
+                                swing_lookback=5,
+                                break_even_pct=0.9,
+                                break_even_buffer_atr_mult=0.2)
 # Ver resultados
 print(f"\n{'='*50}")
 print(f"ANÁLISIS DE {symbol}")
