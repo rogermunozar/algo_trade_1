@@ -1,12 +1,13 @@
 # visualization/chart_plotter.py
 """
-Módulo mejorado para visualización de gráficos con mplfinance
-Incluye: más indicadores, mejor diseño, y gráficos interactivos
+Módulo mejorado para visualización con marcadores de trades
 """
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
+from matplotlib.patches import Rectangle
 import mplfinance as mpf
 import numpy as np
+import pandas as pd
 from typing import Dict, Optional
 import logging
 
@@ -14,14 +15,15 @@ logger = logging.getLogger(__name__)
 
 
 def graficar_analisis(datos_calculados: Dict, mostrar_avanzado: bool = True, 
-                     guardar: bool = False, filename: Optional[str] = None):
+                     mostrar_trades: bool = True, guardar: bool = False, 
+                     filename: Optional[str] = None):
     """
-    Función mejorada que genera el gráfico usando los datos calculados.
-    Completamente agnóstica del broker - solo necesita el diccionario de datos.
+    Función mejorada que genera el gráfico con visualización de trades
     
     Args:
         datos_calculados: Diccionario retornado por calcular_indicadores()
         mostrar_avanzado: Si True, muestra patrones y divergencias
+        mostrar_trades: Si True, muestra entradas/salidas de trades
         guardar: Si True, guarda el gráfico como imagen
         filename: Nombre del archivo para guardar (opcional)
     """
@@ -40,7 +42,7 @@ def graficar_analisis(datos_calculados: Dict, mostrar_avanzado: bool = True,
     coeffs_resistance = datos_calculados['coeffs_resistance']
     coeffs_support = datos_calculados['coeffs_support']
     
-    # Datos avanzados (si existen)
+    # Datos avanzados
     divergencias = datos_calculados.get('divergencias', {})
     patrones_velas = datos_calculados.get('patrones_velas', {})
     niveles_fib = datos_calculados.get('niveles_fibonacci', {})
@@ -50,8 +52,11 @@ def graficar_analisis(datos_calculados: Dict, mostrar_avanzado: bool = True,
     
     logger.info(f"Generando gráfico para {symbol}")
     
-    # ========== CREAR PLOTS ADICIONALES ==========
+    # ========== DETECTAR SI HAY TRADES ==========
+    tiene_trades = ('smart_exit_signal' in dfX.columns and 
+                   (dfX['smart_exit_signal'] != 0).any())
     
+    # ========== CREAR PLOTS ADICIONALES ==========
     apds = []
     
     # Soportes y resistencias
@@ -74,14 +79,25 @@ def graficar_analisis(datos_calculados: Dict, mostrar_avanzado: bool = True,
     apds.extend([apd_resistance, apd_support])
     
     # Medias móviles en el panel principal
-    apds.append(mpf.make_addplot(dfX['SMA_20'], color='blue', width=1.5, alpha=0.7))
-    apds.append(mpf.make_addplot(dfX['SMA_50'], color='orange', width=1.5, alpha=0.7))
+    apds.append(mpf.make_addplot(dfX['SMA_20'], color='blue', width=1.5, alpha=0.7, label='SMA 20'))
+    apds.append(mpf.make_addplot(dfX['SMA_50'], color='orange', width=1.5, alpha=0.7, label='SMA 50'))
     if 'SMA_200' in dfX.columns and not dfX['SMA_200'].isna().all():
-        apds.append(mpf.make_addplot(dfX['SMA_200'], color='purple', width=2, alpha=0.5))
+        apds.append(mpf.make_addplot(dfX['SMA_200'], color='purple', width=2, alpha=0.5, label='SMA 200'))
     
     # Bandas de Bollinger
     apds.append(mpf.make_addplot(dfX['BB_upper'], color='gray', linestyle='--', width=1, alpha=0.5))
     apds.append(mpf.make_addplot(dfX['BB_lower'], color='gray', linestyle='--', width=1, alpha=0.5))
+    
+    # Trailing Stop (si existe)
+    if tiene_trades and mostrar_trades and 'smart_trailing_stop' in dfX.columns:
+        apds.append(mpf.make_addplot(
+            dfX['smart_trailing_stop'], 
+            color='red', 
+            linestyle=':', 
+            width=2, 
+            alpha=0.7,
+            label='Trailing Stop'
+        ))
     
     # RSI en panel 2
     apds.append(mpf.make_addplot(dfX['RSI'], panel=2, color='purple', ylabel='RSI', 
@@ -99,8 +115,8 @@ def graficar_analisis(datos_calculados: Dict, mostrar_avanzado: bool = True,
     apds.append(mpf.make_addplot(dfX['MACD_histogram'], panel=3, 
                                  type='bar', color='gray', alpha=0.5))
     
-    # Señales de trading (si mostrar_avanzado)
-    if mostrar_avanzado and 'senal' in dfX.columns:
+    # Señales de trading (solo si NO hay trades del Smart Exit)
+    if mostrar_avanzado and 'senal' in dfX.columns and not tiene_trades:
         # Señales de compra (verde)
         compras = dfX['close'].copy()
         compras[dfX['senal'] != 1] = np.nan
@@ -114,17 +130,21 @@ def graficar_analisis(datos_calculados: Dict, mostrar_avanzado: bool = True,
                                      marker='v', color='red', alpha=0.9))
     
     # ========== CREAR TÍTULO INFORMATIVO ==========
-    
     titulo = (f"{symbol} - {fecha_str} - {interval}\n"
              f"Tendencia: {tendencia} | Volatilidad: {volatilidad:.2f}% | "
              f"Cambio: {cambio_porcentual:+.2f}%")
     
-    # ========== CONFIGURAR ESTILO ==========
+    if tiene_trades:
+        exits = dfX[dfX['smart_exit_signal'] != 0]
+        if len(exits) > 0:
+            pnl_total = exits['smart_trade_pnl'].sum()
+            win_rate = (exits['smart_trade_pnl'] > 0).sum() / len(exits) * 100
+            titulo += f"\nTrades: {len(exits)} | P&L: ${pnl_total:+.2f} | Win Rate: {win_rate:.1f}%"
     
-    # Estilo personalizado
+    # ========== CONFIGURAR ESTILO ==========
     mc = mpf.make_marketcolors(
-        up='#26A69A',      # Verde para velas alcistas
-        down='#EF5350',    # Rojo para velas bajistas
+        up='#26A69A',
+        down='#EF5350',
         edge='inherit',
         wick='inherit',
         volume='in',
@@ -142,7 +162,6 @@ def graficar_analisis(datos_calculados: Dict, mostrar_avanzado: bool = True,
     )
     
     # ========== CREAR GRÁFICO ==========
-    
     fig, axes = mpf.plot(
         dfX, 
         type='candle', 
@@ -151,37 +170,37 @@ def graficar_analisis(datos_calculados: Dict, mostrar_avanzado: bool = True,
         addplot=apds,
         title=titulo,
         warn_too_much_data=2000,
-        figsize=(22, 12),
-        panel_ratios=(6, 2, 2, 2),  # Ratios de tamaño de paneles
+        figsize=(24, 14),
+        panel_ratios=(6, 2, 2, 2),
         returnfig=True,
         tight_layout=True
     )
     
-    ax = axes[0]  # Panel principal (velas)
+    ax = axes[0]  # Panel principal
     
     # ========== CONFIGURAR EJES ==========
-    
     ax.xaxis.set_major_locator(MaxNLocator(nbins=20))
     plt.setp(ax.get_xticklabels(), fontsize=8, rotation=45)
     
-    # Configurar otros paneles
     for i in range(1, len(axes)):
         axes[i].xaxis.set_major_locator(MaxNLocator(nbins=20))
         plt.setp(axes[i].get_xticklabels(), fontsize=8, rotation=45)
     
-    # ========== AGREGAR ANOTACIONES ==========
+    # ========== MARCAR TRADES ==========
+    if tiene_trades and mostrar_trades:
+        _marcar_trades_en_grafico(ax, dfX)
     
+    # ========== AGREGAR ANOTACIONES DE NIVELES ==========
     price_range = dfX['high'].max() - dfX['low'].min()
     offset_up = price_range * 0.02
     offset_down = price_range * 0.02
     
-    # RESISTENCIAS con objetivos SHORT
+    # RESISTENCIAS
     for idx in high_peaks_indices:
         price = dfX['high'].iloc[idx]
         
-        # Etiqueta de precio
         ax.text(
-            idx, price + offset_up, f'{price:.2f}',
+            idx, price + offset_up, f'${price:.2f}',
             ha='center', va='bottom',
             fontsize=9, color='darkred',
             fontweight='bold',
@@ -189,7 +208,6 @@ def graficar_analisis(datos_calculados: Dict, mostrar_avanzado: bool = True,
                      edgecolor='red', alpha=0.8, linewidth=2)
         )
         
-        # Precio objetivo SHORT
         precio_objetivo_short = price * (1 - comision)
         ax.axhline(
             y=precio_objetivo_short, 
@@ -201,10 +219,9 @@ def graficar_analisis(datos_calculados: Dict, mostrar_avanzado: bool = True,
             xmax=min(1, (idx+40)/len(dfX))
         )
         
-        # Etiqueta objetivo SHORT
         ax.text(
             idx, precio_objetivo_short, 
-            f' TP SHORT: {precio_objetivo_short:.2f}',
+            f' TP SHORT: ${precio_objetivo_short:.2f}',
             ha='left', va='center',
             fontsize=8, color='darkorange',
             fontweight='bold',
@@ -212,13 +229,12 @@ def graficar_analisis(datos_calculados: Dict, mostrar_avanzado: bool = True,
                      edgecolor='orange', alpha=0.9, linewidth=1.5)
         )
     
-    # SOPORTES con objetivos LONG
+    # SOPORTES
     for idx in low_peaks_indices:
         price = dfX['low'].iloc[idx]
         
-        # Etiqueta de precio
         ax.text(
-            idx, price - offset_down, f'{price:.2f}',
+            idx, price - offset_down, f'${price:.2f}',
             ha='center', va='top',
             fontsize=9, color='darkgreen',
             fontweight='bold',
@@ -226,7 +242,6 @@ def graficar_analisis(datos_calculados: Dict, mostrar_avanzado: bool = True,
                      edgecolor='green', alpha=0.8, linewidth=2)
         )
         
-        # Precio objetivo LONG
         precio_objetivo_long = price * (1 + comision)
         ax.axhline(
             y=precio_objetivo_long, 
@@ -238,10 +253,9 @@ def graficar_analisis(datos_calculados: Dict, mostrar_avanzado: bool = True,
             xmax=min(1, (idx+40)/len(dfX))
         )
         
-        # Etiqueta objetivo LONG
         ax.text(
             idx, precio_objetivo_long, 
-            f' TP LONG: {precio_objetivo_long:.2f}',
+            f' TP LONG: ${precio_objetivo_long:.2f}',
             ha='left', va='center',
             fontsize=8, color='darkblue',
             fontweight='bold',
@@ -250,7 +264,6 @@ def graficar_analisis(datos_calculados: Dict, mostrar_avanzado: bool = True,
         )
     
     # ========== LÍNEAS DE TENDENCIA ==========
-    
     if coeffs_resistance is not None:
         poly_resistance = np.poly1d(coeffs_resistance)
         x_line = np.arange(0, len(dfX))
@@ -261,7 +274,7 @@ def graficar_analisis(datos_calculados: Dict, mostrar_avanzado: bool = True,
             linestyle='--',
             linewidth=2.5, 
             alpha=0.7, 
-            label=f'Línea Resistencia (m={slope_resistance:.6f})'
+            label=f'Resistencia (m={slope_resistance:.6f})'
         )
     
     if coeffs_support is not None:
@@ -274,13 +287,11 @@ def graficar_analisis(datos_calculados: Dict, mostrar_avanzado: bool = True,
             linestyle='--',
             linewidth=2.5, 
             alpha=0.7,
-            label=f'Línea Soporte (m={slope_support:.6f})'
+            label=f'Soporte (m={slope_support:.6f})'
         )
     
     # ========== NIVELES DE FIBONACCI ==========
-    
     if mostrar_avanzado and niveles_fib:
-        # Solo mostrar algunos niveles clave
         niveles_mostrar = ['nivel_236', 'nivel_382', 'nivel_500', 'nivel_618']
         colores_fib = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A']
         
@@ -294,7 +305,6 @@ def graficar_analisis(datos_calculados: Dict, mostrar_avanzado: bool = True,
                     linewidth=1, 
                     alpha=0.4
                 )
-                # Etiqueta pequeña a la derecha
                 ax.text(
                     len(dfX) - 1, precio_fib, 
                     f' Fib {nivel.split("_")[1]}',
@@ -304,9 +314,7 @@ def graficar_analisis(datos_calculados: Dict, mostrar_avanzado: bool = True,
                 )
     
     # ========== MARCAR PATRONES DE VELAS ==========
-    
-    if mostrar_avanzado and patrones_velas:
-        # Hammers (alcistas)
+    if mostrar_avanzado and patrones_velas and not tiene_trades:
         for idx in patrones_velas.get('hammer', []):
             if idx < len(dfX):
                 ax.annotate(
@@ -320,7 +328,6 @@ def graficar_analisis(datos_calculados: Dict, mostrar_avanzado: bool = True,
                     ha='center'
                 )
         
-        # Shooting stars (bajistas)
         for idx in patrones_velas.get('shooting_star', []):
             if idx < len(dfX):
                 ax.annotate(
@@ -334,7 +341,6 @@ def graficar_analisis(datos_calculados: Dict, mostrar_avanzado: bool = True,
                     ha='center'
                 )
         
-        # Engulfing alcista
         for idx in patrones_velas.get('engulfing_alcista', []):
             if idx < len(dfX):
                 ax.annotate(
@@ -349,7 +355,6 @@ def graficar_analisis(datos_calculados: Dict, mostrar_avanzado: bool = True,
                     bbox=dict(boxstyle='round,pad=0.2', facecolor='lightgreen', alpha=0.7)
                 )
         
-        # Engulfing bajista
         for idx in patrones_velas.get('engulfing_bajista', []):
             if idx < len(dfX):
                 ax.annotate(
@@ -365,11 +370,9 @@ def graficar_analisis(datos_calculados: Dict, mostrar_avanzado: bool = True,
                 )
     
     # ========== LEYENDA ==========
-    
     ax.legend(loc='upper left', fontsize=9, framealpha=0.9)
     
     # ========== GUARDAR O MOSTRAR ==========
-    
     if guardar:
         if filename is None:
             filename = f'chart_{symbol}_{fecha_str}_{interval}.png'
@@ -380,6 +383,144 @@ def graficar_analisis(datos_calculados: Dict, mostrar_avanzado: bool = True,
     logger.info("Gráfico generado exitosamente")
 
 
+def _marcar_trades_en_grafico(ax, df: pd.DataFrame):
+    """
+    Marca las entradas y salidas de trades en el gráfico
+    
+    Args:
+        ax: Eje de matplotlib
+        df: DataFrame con información de trades
+    """
+    # Detectar entradas (cambio de NaN a valor en trade_id)
+    df = df.reset_index(drop=True)
+    
+    entries = []
+    exits = []
+    current_trade_id = None
+    
+    for i in range(len(df)):
+        trade_id = df.at[i, 'smart_trade_id']
+        
+        # Detectar entrada (nueva trade_id)
+        if pd.notna(trade_id) and trade_id != current_trade_id:
+            current_trade_id = trade_id
+            entries.append(i)
+        
+        # Detectar salida (exit_signal != 0)
+        if df.at[i, 'smart_exit_signal'] != 0:
+            exits.append(i)
+            current_trade_id = None
+    
+    # Marcar ENTRADAS
+    for idx in entries:
+        price = df.at[idx, 'close']
+        position_type = df.at[idx, 'smart_position_type']
+        
+        if position_type == 'LONG':
+            # Flecha verde apuntando arriba
+            ax.annotate(
+                'LONG', 
+                xy=(idx, price),
+                xytext=(0, -30),
+                textcoords='offset points',
+                ha='center',
+                fontsize=10,
+                fontweight='bold',
+                color='white',
+                bbox=dict(boxstyle='round,pad=0.5', facecolor='green', 
+                         edgecolor='darkgreen', linewidth=2, alpha=0.9),
+                arrowprops=dict(arrowstyle='->', color='green', lw=2)
+            )
+        else:  # SHORT
+            # Flecha roja apuntando abajo
+            ax.annotate(
+                'SHORT', 
+                xy=(idx, price),
+                xytext=(0, 30),
+                textcoords='offset points',
+                ha='center',
+                fontsize=10,
+                fontweight='bold',
+                color='white',
+                bbox=dict(boxstyle='round,pad=0.5', facecolor='red', 
+                         edgecolor='darkred', linewidth=2, alpha=0.9),
+                arrowprops=dict(arrowstyle='->', color='red', lw=2)
+            )
+    
+    # Marcar SALIDAS
+    for idx in exits:
+        price = df.at[idx, 'close']
+        pnl = df.at[idx, 'smart_trade_pnl']
+        exit_type = df.at[idx, 'smart_exit_signal']
+        position_type = df.at[idx, 'smart_position_type']
+        
+        # Determinar tipo de salida
+        if exit_type == 1:
+            exit_label = 'TP'
+            exit_color = 'blue'
+        else:
+            exit_label = 'STOP'
+            exit_color = 'orange'
+        
+        # Determinar si fue ganador o perdedor
+        if pnl > 0:
+            bg_color = '#90EE90'  # Verde claro
+            edge_color = 'green'
+            emoji = '✓'
+        else:
+            bg_color = '#FFB6C1'  # Rosa claro
+            edge_color = 'red'
+            emoji = '✗'
+        
+        # Crear etiqueta con P&L
+        pnl_pct = (pnl / price) * 100
+        label = f'{emoji} {exit_label}\n${pnl:+.2f}\n({pnl_pct:+.1f}%)'
+        
+        offset_y = -40 if position_type == 'LONG' else 40
+        
+        ax.annotate(
+            label,
+            xy=(idx, price),
+            xytext=(0, offset_y),
+            textcoords='offset points',
+            ha='center',
+            fontsize=9,
+            fontweight='bold',
+            color='black',
+            bbox=dict(boxstyle='round,pad=0.6', facecolor=bg_color, 
+                     edgecolor=edge_color, linewidth=2, alpha=0.9),
+            arrowprops=dict(arrowstyle='->', color=exit_color, lw=2)
+        )
+    
+    # Resaltar zonas de trades con fondo
+    for i, entry_idx in enumerate(entries):
+        if i < len(exits):
+            exit_idx = exits[i]
+            entry_price = df.at[entry_idx, 'close']
+            exit_price = df.at[exit_idx, 'close']
+            pnl = df.at[exit_idx, 'smart_trade_pnl']
+            
+            # Color de fondo según resultado
+            if pnl > 0:
+                bg_color = 'lightgreen'
+            else:
+                bg_color = 'lightcoral'
+            
+            # Agregar rectángulo de fondo
+            y_min = min(entry_price, exit_price) * 0.995
+            y_max = max(entry_price, exit_price) * 1.005
+            
+            rect = Rectangle(
+                (entry_idx, y_min),
+                exit_idx - entry_idx,
+                y_max - y_min,
+                facecolor=bg_color,
+                alpha=0.1,
+                zorder=0
+            )
+            ax.add_patch(rect)
+
+
 def graficar_comparacion(datos_list: list, symbols: list):
     """
     Grafica múltiples activos para comparación
@@ -388,7 +529,7 @@ def graficar_comparacion(datos_list: list, symbols: list):
         datos_list: Lista de diccionarios de datos calculados
         symbols: Lista de símbolos correspondientes
     """
-    fig, axes = plt.subplots(len(datos_list), 1, figsize=(20, 6*len(datos_list)))
+    fig, axes = plt.subplots(len(datos_list), 1, figsize=(22, 6*len(datos_list)))
     
     if len(datos_list) == 1:
         axes = [axes]
@@ -400,11 +541,23 @@ def graficar_comparacion(datos_list: list, symbols: list):
         precio_inicial = dfX['close'].iloc[0]
         dfX_norm = dfX['close'] / precio_inicial * 100
         
-        axes[i].plot(dfX_norm, label=symbol, linewidth=2)
-        axes[i].set_title(f'{symbol} - Evolución Normalizada (Base 100)')
-        axes[i].set_ylabel('Precio Normalizado')
-        axes[i].grid(True, alpha=0.3)
-        axes[i].legend()
+        axes[i].plot(dfX_norm, label=symbol, linewidth=2, color=f'C{i}')
+        axes[i].set_title(f'{symbol} - Evolución Normalizada (Base 100)', fontsize=14, fontweight='bold')
+        axes[i].set_ylabel('Precio Normalizado', fontsize=12)
+        axes[i].grid(True, alpha=0.3, linestyle='--')
+        axes[i].legend(fontsize=12)
+        
+        # Agregar info de tendencia
+        tendencia = datos.get('tendencia', 'N/A')
+        cambio = datos.get('cambio_porcentual', 0)
+        axes[i].text(
+            0.02, 0.98, 
+            f'Tendencia: {tendencia}\nCambio: {cambio:+.2f}%',
+            transform=axes[i].transAxes,
+            verticalalignment='top',
+            bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8),
+            fontsize=10
+        )
     
     plt.tight_layout()
     plt.show()
@@ -413,31 +566,15 @@ def graficar_comparacion(datos_list: list, symbols: list):
 def recalc(symbol: str, fecha_str: str, interval: str, df, 
           comision: Optional[float] = None, display: int = 0) -> Dict:
     """
-    Función wrapper mejorada para mantener compatibilidad con código existente.
-    Ejecuta cálculos y gráficos en secuencia.
-    
-    Args:
-        symbol: Símbolo del activo
-        fecha_str: Fecha para identificación
-        interval: Intervalo temporal
-        df: DataFrame con datos OHLCV
-        comision: Comisión en decimal (opcional)
-        display: Si 1, guarda CSV
-    
-    Returns:
-        Dict: Diccionario completo con todos los resultados
+    Función wrapper para mantener compatibilidad
     """
     from analysis.indicators import calcular_indicadores
     
     logger.info(f"Ejecutando recalc para {symbol}")
     
-    # Calcular indicadores
     datos = calcular_indicadores(symbol, fecha_str, interval, df, comision, display)
-    
-    # Graficar
     graficar_analisis(datos, mostrar_avanzado=True)
     
-    # Retornar resumen
     return {
         'slope_resistance': datos['slope_resistance'],
         'slope_support': datos['slope_support'],
