@@ -237,8 +237,9 @@ def calcular_indicadores(symbol: str, fecha_str: str, interval: str,
     """
     # Comisión por defecto si no se especifica
     if comision is None:
-        comision = 0.002  # 0.2% (0.1% * 2 para entrada y salida)
-    
+        logger.error(f"Error no se especifico la comision del broker")
+        raise
+
     # Eliminar filas con NaN
     dfX = df.dropna().copy()
     
@@ -428,21 +429,3 @@ def calcular_indicadores(symbol: str, fecha_str: str, interval: str,
         'tendencia': tendencia,
         'ultimo_atr': ultimo_atr
     }
-
-
-def calcular_comision_binance(symbol: str) -> float:
-    """
-    Calcula la comisión específica de Binance
-    (Función helper para mantener compatibilidad)
-    
-    Args:
-        symbol: Símbolo del par
-        
-    Returns:
-        float: Comisión en decimal
-    """
-    binance_comision_base = 0.1  # 0.1%
-    comision = binance_comision_base / 100 * 2
-    if symbol.startswith("BNB"):
-        comision = comision * 0.75
-    return comision

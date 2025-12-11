@@ -1,8 +1,13 @@
 ﻿# ============================================
 # ARCHIVOS DE CREDENCIALES (MUY IMPORTANTE)
 # ============================================
-secrets/
-*.secrets.json
+analysis/.ipynb_checkpoints
+analysis/__pycache__
+clients/.ipynb_checkpoints
+clients/__pycache__
+visualization/.ipynb_checkpoints
+v/__pycache__
+
 .env
 *.key
 *.pem
