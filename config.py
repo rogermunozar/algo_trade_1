@@ -38,14 +38,14 @@ INITIAL_CAPITAL = 10000.0
 #   1.5-2.0%  → Balanceado (recomendado) ⭐
 #   2.5-3.0%  → Agresivo (experiencia requerida)
 #   5.0%+     → Muy agresivo (peligroso) ⚠️
-RISK_PER_TRADE = 1.5
+RISK_PER_TRADE = 0.25
 
 # Apalancamiento
 # Recomendaciones:
 #   1x   → Spot / Sin apalancamiento (más seguro) ⭐
 #   2-3x → Apalancamiento moderado
 #   5x+  → Alto riesgo (solo expertos) ⚠️
-LEVERAGE = 1.0
+LEVERAGE = 0.25
 
 
 # ========================================
